@@ -1,18 +1,15 @@
 import React, { useState } from 'react';
 import './Chessboard.css';
 import ChessJS, { ChessInstance, Move, ShortMove, Square } from 'chess.js';
-<<<<<<< HEAD
-import { Chessboard as React_Chessboard } from 'react-chessboard';
-=======
 import { Chessboard as ReactChessboard } from 'react-chessboard';
 import { Button, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
->>>>>>> 58f72c3... fixup refactor component
 
 const Chess = (typeof ChessJS === "object")? ChessJS.Chess : ChessJS;
 
 function Chessboard() {
 
   const [game, setGame] = useState<ChessInstance>(new Chess());
+  const [openEndDialog, setOpenEndDialog] = useState<boolean>(false);
 
   function safeGameMutate(modify: (g:ChessInstance) => void) {
     setGame((game) => {
@@ -52,6 +49,12 @@ function Chessboard() {
       }, 200);
     }
 
+    if (game.game_over()) {
+      setTimeout(() => {
+        setOpenEndDialog(() => true);
+      }, 200);
+    }
+     
     return true;
   }
 
@@ -62,6 +65,24 @@ function Chessboard() {
             onPieceDrop={onDrop}
         />
 
+        <Dialog // End Dialog
+            open={openEndDialog}
+            aria-labelledby='end-dialog-title'
+            aria-describedby='end-dialog-description'
+        >
+            <DialogTitle id='end-dialog-title'>
+                {'Game Over'}
+            </DialogTitle>
+            <DialogContent>
+                <DialogContentText id='end-dialog-description'>
+                   {
+                       game.in_draw()?
+                        "Game is drawn.":
+                        (game.turn() !== "w"? "White": "Black") + " won by checkmate."
+                   } 
+                </DialogContentText>
+            </DialogContent>
+        </Dialog>
     </>
   );
 }
