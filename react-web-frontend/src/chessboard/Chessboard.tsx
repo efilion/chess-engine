@@ -9,6 +9,8 @@ const Chess = (typeof ChessJS === "object")? ChessJS.Chess : ChessJS;
 function Chessboard() {
 
   const [game, setGame] = useState<ChessInstance>(new Chess());
+  const [playerSide, setPlayerSide] = useState<"white"|"black">("white");
+  const [openStartDialog, setOpenStartDialog] = useState<boolean>(true);
   const [openEndDialog, setOpenEndDialog] = useState<boolean>(false);
 
   function safeGameMutate(modify: (g:ChessInstance) => void) {
@@ -34,6 +36,9 @@ function Chessboard() {
   }
 
   function onDrop(sourceSquare: Square, targetSquare: Square): boolean {
+
+    if (game.turn() !== playerSide[0])
+      return false;
 
     let confirm_move = makeMove({
       from: sourceSquare,
@@ -62,8 +67,40 @@ function Chessboard() {
     <>
         <ReactChessboard
             position={game.fen()}
+            boardOrientation={playerSide}
             onPieceDrop={onDrop}
         />
+
+        <Dialog // Start Dialog
+            open={openStartDialog}
+            aria-labelledby='start-dialog-title'
+        >
+            <DialogTitle id='start-dialog-title'>
+                {'Choose side'}
+            </DialogTitle>
+            <DialogActions>
+                <Button onClick={
+                    () => {
+                        setPlayerSide(() => 'white');
+                        setOpenStartDialog(() => false);
+                    }
+                }>
+                    White
+                </Button>
+                
+                <Button onClick={
+                    () => {
+                        setPlayerSide(() => 'black');
+                        setOpenStartDialog(() => false);
+                        setTimeout(() => {
+                            makeMove(randomMove(game))
+                        }, 1000);
+                    }
+                }>
+                    Black
+                </Button>
+            </DialogActions>
+        </Dialog>
 
         <Dialog // End Dialog
             open={openEndDialog}
