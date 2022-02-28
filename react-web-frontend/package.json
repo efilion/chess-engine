@@ -1,6 +1,7 @@
 {
   "name": "react-web-frontend",
   "version": "0.1.0",
+  "homepage": "chess-engine",
   "private": true,
   "dependencies": {
     "@emotion/react": "^11.8.1",
@@ -26,6 +27,8 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "test:debug": "react-scripts --inspect-brk test --runInBand --no-cache",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -47,6 +50,7 @@
     ]
   },
   "devDependencies": {
-    "@types/chess.js": "^0.11.2"
+    "@types/chess.js": "^0.11.2",
+    "gh-pages": "^3.2.3"
   }
 }
