@@ -5,6 +5,9 @@
         },
         {
             "path": "python/webapi"
+        },
+        {
+            "path": "."
         }
     ]
 }

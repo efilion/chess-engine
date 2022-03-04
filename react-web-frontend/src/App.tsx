@@ -7,7 +7,7 @@ function App() {
 
   const [msg, setMsg] = useState("");
 
-  Axios.get('http://' + (process.env.REACT_APP_ENGINE_SERVICE as string))
+  Axios.get('https://' + (process.env.REACT_APP_ENGINE_SERVICE as string))
     .then((res) => {
       setMsg(() => res.data);
     })

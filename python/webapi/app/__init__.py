@@ -14,7 +14,7 @@ def create_app(test_config=None):
         app.config.from_mapping(test_config)
 
     @app.route("/")
-    @cross_origin(origins = ['http://' + app.config['REACT_HOST']], methods = ["GET"])
+    @cross_origin(origins = ['https://' + app.config['REACT_HOST']], methods = ["GET"])
     def hello_world():
         return "Hello, World!"
 
