@@ -1,0 +1,92 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  Test-Python:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+          cache: pipenv
+    
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pipenv
+          pipenv install --deploy --dev
+        working-directory: python/webapi
+
+      - name: Run test suite
+        run: |
+          pipenv run pytest
+        working-directory: python/webapi
+        env:
+          PYTHONPATH: .
+          ENGINE_CONFIG_FILE: config/staging.py
+
+  Deploy-Python:
+    needs: [test-python, test-react]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: main
+
+      - uses: actions/checkout@v3
+        with:
+          ref: heroku
+
+      - name: Deploy python webapi to heroku
+        run: |
+          git --version
+          git config user.name "GitHub Actions Deploy-Python"
+          git config user.email "<>"
+          git checkout origin/main -- tasks/deploy-to-heroku.sh
+          . "${GITHUB_WORKSPACE}/tasks/deploy-to-heroku.sh" origin/main
+
+  Test-React:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: react-web-frontend
+
+      - name: Run test suite
+        run: npm test
+        working-directory: react-web-frontend
+
+  Deploy-React:
+    needs: [test-react, test-python, deploy-python]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: gh-pages
+
+      - uses: actions/checkout@v3
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v3
+
+      - name: Deploy react frontend to gh-pages
+        run: |
+          git --version
+          git config user.name "GitHub Actions Deploy-Python"
+          git config user.email "<>"
+          . "${GITHUB_WORKSPACE}/tasks/deploy-to-gh-pages.sh" origin/main
