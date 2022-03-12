@@ -8,6 +8,7 @@ Flask = "*"
 Flask-Cors = "*"
 python-dotenv = "*"
 gunicorn = "*"
+chess = "*"
 
 [dev-packages]
 pytest = "*"
