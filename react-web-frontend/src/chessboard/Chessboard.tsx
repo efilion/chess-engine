@@ -1,18 +1,45 @@
-import React, { useState } from 'react';
-import Axios from 'axios';
+import React, { useCallback, useEffect, useState } from 'react';
 import './Chessboard.css';
 import ChessJS, { ChessInstance, ShortMove, Square } from 'chess.js';
 import { Chessboard as ReactChessboard } from 'react-chessboard';
-import { Button, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
 
 const Chess = (typeof ChessJS === "object")? ChessJS.Chess : ChessJS;
+export type GameResult = 'drawn' | 'white' | 'black'
 
-function Chessboard() {
+export type BoardProps = {
+  onStartGame: () => Promise<'white'|'black'>,
+  onGameOver: (r:GameResult) => void,
+  engineMove: (fen: string) => Promise<ShortMove>,
+  fen?: string,
+  animationDuration?: number,
+  engineDelay?: number
+}
+function Chessboard(props: BoardProps) {
 
-  const [game, setGame] = useState<ChessInstance>(new Chess());
-  const [playerSide, setPlayerSide] = useState<"white"|"black">("white");
-  const [openStartDialog, setOpenStartDialog] = useState<boolean>(true);
-  const [openEndDialog, setOpenEndDialog] = useState<boolean>(false);
+  const [game, setGame] = useState<ChessInstance>(new Chess(props.fen));
+  const [playerSide, setPlayerSide] = useState<'white'|'black'>('white');
+
+  const _onStartGame = useCallback(() => props.onStartGame(), []);
+  const _engineDelay = props.engineDelay;
+  const _makeEngineMove = useCallback(() => {
+    makeEngineMove(_engineDelay || 1000)
+  }, [_engineDelay]);
+  useEffect(() => {
+    _onStartGame()
+      .then((choice) => {
+        setPlayerSide(choice);
+        if (choice === 'black') {
+          _makeEngineMove()
+        }
+      })
+
+    return () => {
+      let id = window.setTimeout(() => {}, 0);
+      while (id--) {
+        window.clearTimeout(id);
+      }
+    }
+  }, [_onStartGame, _makeEngineMove, _engineDelay]);
 
   function safeGameMutate(modify: (g:ChessInstance) => void) {
     setGame((game) => {
@@ -22,7 +49,7 @@ function Chessboard() {
     });
   }
 
-  function makeMove(move: ShortMove) {
+  function makeMove(move: ShortMove): (ShortMove|null) {
     let confirm_move = null
     safeGameMutate((game) => {
       confirm_move = game.move(move);
@@ -30,17 +57,10 @@ function Chessboard() {
     return confirm_move;
   }
 
-  async function randomMove(g:ChessInstance): Promise<ShortMove> {
-    return Axios.get<`${Square}${Square}`>(
-      `${(process.env.REACT_APP_TLS === "true")?'https':'http'}://${process.env.REACT_APP_ENGINE_SERVICE}/random/uci/${encodeURI(g.fen())}`
-      )
-      .then((res) => {
-        return {
-          from: res.data.slice(0,2) as Square,
-          to: res.data.slice(2,4) as Square,
-          promotion: "q"
-        };
-      })
+  async function makeEngineMove(delay: number): Promise<void> {
+    props.engineMove(game.fen())
+      .then(m => new Promise<ShortMove>(resolve => setTimeout(() => resolve(m), delay)))
+      .then(m => makeMove(m));
   }
 
   function onDrop(sourceSquare: Square, targetSquare: Square): boolean {
@@ -57,15 +77,23 @@ function Chessboard() {
     if (confirm_move === null) return false;
     
     if (!game.game_over()) {
-      setTimeout(() => {
-        randomMove(game).then(m => makeMove(m));
-      }, 200);
+      window.setTimeout(makeEngineMove, props.engineDelay || 200)
     }
 
     if (game.game_over()) {
-      setTimeout(() => {
-        setOpenEndDialog(() => true);
-      }, 200);
+      window.setTimeout(() => {
+        let result: GameResult;
+        if (game.in_draw()) {
+          result = 'drawn';
+        }
+        else if (game.turn() === "w") {
+          result = 'black';
+        }
+        else {
+          result = 'white'
+        }
+        props.onGameOver(result);
+      }, props.engineDelay || 200);
     }
      
     return true;
@@ -77,57 +105,9 @@ function Chessboard() {
             position={game.fen()}
             boardOrientation={playerSide}
             onPieceDrop={onDrop}
+            animationDuration={props.animationDuration}
         />
 
-        <Dialog // Start Dialog
-            open={openStartDialog}
-            aria-labelledby='start-dialog-title'
-        >
-            <DialogTitle id='start-dialog-title'>
-                {'Choose side'}
-            </DialogTitle>
-            <DialogActions>
-                <Button onClick={
-                    () => {
-                        setPlayerSide(() => 'white');
-                        setOpenStartDialog(() => false);
-                    }
-                }>
-                    White
-                </Button>
-                
-                <Button onClick={
-                    () => {
-                        setPlayerSide(() => 'black');
-                        setOpenStartDialog(() => false);
-                        setTimeout(() => {
-                            randomMove(game).then(m => makeMove(m));
-                        }, 1000);
-                    }
-                }>
-                    Black
-                </Button>
-            </DialogActions>
-        </Dialog>
-
-        <Dialog // End Dialog
-            open={openEndDialog}
-            aria-labelledby='end-dialog-title'
-            aria-describedby='end-dialog-description'
-        >
-            <DialogTitle id='end-dialog-title'>
-                {'Game Over'}
-            </DialogTitle>
-            <DialogContent>
-                <DialogContentText id='end-dialog-description'>
-                   {
-                       game.in_draw()?
-                        "Game is drawn.":
-                        (game.turn() !== "w"? "White": "Black") + " won by checkmate."
-                   } 
-                </DialogContentText>
-            </DialogContent>
-        </Dialog>
     </>
   );
 }
