@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import './App.css';
 import Chessboard, { BoardProps, GameResult } from './chessboard/Chessboard';
 import { getRandomMove } from './engine/Random';
@@ -9,13 +9,13 @@ function App(props: {boardProps?: Partial<BoardProps>}) {
   const [openStartDialog, setOpenStartDialog] = useState<boolean>(false);
   type sides = ('white'|'black');
   const [choose, setChoose] = useState<(choice:sides)=>void>(() => () => {});
-  const startGame = () => {
+  const startGame = useCallback(() => {
     let playerChoice = new Promise<sides>((resolve) => {
       setChoose(() => resolve);
     });
     setOpenStartDialog(true)
     return playerChoice;
-  }
+  }, [setChoose, setOpenStartDialog])
   const chooseWhite = () => {
     choose('white');
     setOpenStartDialog(false);
@@ -27,7 +27,7 @@ function App(props: {boardProps?: Partial<BoardProps>}) {
   
   const [openEndDialog, setOpenEndDialog] = useState<boolean>(false);
   const [endDialogText, setEndDialogText] = useState<string>("")
-  const endGame = (result:GameResult) => {
+  const endGame = useCallback((result:GameResult) => {
     if (result === 'drawn') {
       setEndDialogText('Game is drawn.')
     }
@@ -38,7 +38,7 @@ function App(props: {boardProps?: Partial<BoardProps>}) {
       setEndDialogText('Black won by checkmate.');
     }
     setOpenEndDialog(true);
-  }
+  }, [])
 
   const boardProps = Object.assign({
     onStartGame: startGame,

@@ -1,45 +1,97 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
+import useState from 'react-usestateref';
+import { Subject, from } from 'rxjs';
+import { map, concatMap } from 'rxjs/operators';
 import './Chessboard.css';
 import ChessJS, { ChessInstance, ShortMove, Square } from 'chess.js';
 import { Chessboard as ReactChessboard } from 'react-chessboard';
 
 const Chess = (typeof ChessJS === "object")? ChessJS.Chess : ChessJS;
-export type GameResult = 'drawn' | 'white' | 'black'
 
 export type BoardProps = {
   onStartGame: () => Promise<'white'|'black'>,
   onGameOver: (r:GameResult) => void,
   engineMove: (fen: string) => Promise<ShortMove>,
-  fen?: string,
-  animationDuration?: number,
-  engineDelay?: number
+  fen?: string, // starting board position
+  engineDelay?: number // ms wait before engine response
 }
+export type GameResult = 'drawn' | 'white' | 'black'
+
 function Chessboard(props: BoardProps) {
 
-  const [game, setGame] = useState<ChessInstance>(new Chess(props.fen));
+  const [game, setGame, gameRef] = useState<ChessInstance>(new Chess(props.fen));
   const [playerSide, setPlayerSide] = useState<'white'|'black'>('white');
 
-  const _onStartGame = useCallback(() => props.onStartGame(), []);
-  const _engineDelay = props.engineDelay;
-  const _makeEngineMove = useCallback(() => {
-    makeEngineMove(_engineDelay || 1000)
-  }, [_engineDelay]);
+  type EngineMoveEvent = { kind: 'EngineMove', move: ShortMove };
+  type CheckGameOverEvent = { kind: 'CheckGameOver' }
+  type NotifyEvent = { kind: 'EngineMove', fen: string } | CheckGameOverEvent
+  const [timeline,] = useState<Subject<NotifyEvent>>(new Subject());
+
+  const _onStartGame = props.onStartGame
   useEffect(() => {
     _onStartGame()
       .then((choice) => {
         setPlayerSide(choice);
         if (choice === 'black') {
-          _makeEngineMove()
+          let game = gameRef.current;
+          timeline.next({ kind: 'EngineMove', fen: game.fen() });
         }
       })
+  }, [_onStartGame, timeline, gameRef]);
+  
+  const _engineMove = props.engineMove;
+  const _engineDelay = props.engineDelay;
+  const boardEvents = useMemo(() =>
+    from(timeline).pipe(
+      map(e => {
+        switch (e.kind) {
+          case 'EngineMove': {
+            return Promise.all([
+              _engineMove(e.fen),
+              delay(_engineDelay ?? 0)
+            ])
+            .then(([m, _]) => ({ kind: 'EngineMove', move: m} as EngineMoveEvent)) 
+          }
+          case 'CheckGameOver': {
+            return Promise.resolve(e)
+          }
+        }
+      }),
+      concatMap(e => from(e))
+    ), [timeline, _engineMove, _engineDelay])
 
-    return () => {
-      let id = window.setTimeout(() => {}, 0);
-      while (id--) {
-        window.clearTimeout(id);
+  const _onGameOver = props.onGameOver;
+  useEffect(() => {
+    let subscription = boardEvents.subscribe({
+      next: (e) => {
+        switch(e.kind) {
+          case 'EngineMove': {
+            setGame((game) => {
+              const update = {...game};
+              update.move(e.move);
+              return update;
+            })
+            break;
+          }
+          case 'CheckGameOver': {
+            let game = gameRef.current;
+            if (game.game_over()) {
+              let result: GameResult = game.in_draw() ? 'drawn' :
+                (game.turn() === 'w' ? 'black' : 'white');
+              _onGameOver(result)
+            }
+            break;
+          }
+        }
       }
-    }
-  }, [_onStartGame, _makeEngineMove, _engineDelay]);
+    })
+
+    return () => subscription.unsubscribe();
+  }, [boardEvents, gameRef, setGame, _onGameOver])
+
+  async function delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(() => resolve(), ms))
+  }
 
   function safeGameMutate(modify: (g:ChessInstance) => void) {
     setGame((game) => {
@@ -57,12 +109,6 @@ function Chessboard(props: BoardProps) {
     return confirm_move;
   }
 
-  async function makeEngineMove(delay: number): Promise<void> {
-    props.engineMove(game.fen())
-      .then(m => new Promise<ShortMove>(resolve => setTimeout(() => resolve(m), delay)))
-      .then(m => makeMove(m));
-  }
-
   function onDrop(sourceSquare: Square, targetSquare: Square): boolean {
 
     if (game.turn() !== playerSide[0])
@@ -77,25 +123,11 @@ function Chessboard(props: BoardProps) {
     if (confirm_move === null) return false;
     
     if (!game.game_over()) {
-      window.setTimeout(makeEngineMove, props.engineDelay || 200)
+      timeline.next({ kind: 'EngineMove', fen: game.fen() })
     }
 
-    if (game.game_over()) {
-      window.setTimeout(() => {
-        let result: GameResult;
-        if (game.in_draw()) {
-          result = 'drawn';
-        }
-        else if (game.turn() === "w") {
-          result = 'black';
-        }
-        else {
-          result = 'white'
-        }
-        props.onGameOver(result);
-      }, props.engineDelay || 200);
-    }
-     
+    timeline.next({ kind: 'CheckGameOver' });
+
     return true;
   }
 
@@ -105,7 +137,6 @@ function Chessboard(props: BoardProps) {
             position={game.fen()}
             boardOrientation={playerSide}
             onPieceDrop={onDrop}
-            animationDuration={props.animationDuration}
         />
 
     </>
