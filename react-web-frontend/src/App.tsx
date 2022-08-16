@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import './App.css';
 import Chessboard, { BoardProps, GameResult } from './chessboard/Chessboard';
-import { getRandomMove } from './engine/Random';
+import { fetchAkimboMove } from './engine/Akimbo';
 import { AppBar, Box, Toolbar, IconButton, Typography, Container, Divider, Grid,
   Button, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions
 } from '@mui/material';
@@ -52,7 +52,7 @@ function App(props: {boardProps?: Partial<BoardProps>}) {
   const boardProps = Object.assign({
     onStartGame: startGame,
     onGameOver: endGame,
-    engineMove: getRandomMove
+    engineMove: fetchAkimboMove
   }, props.boardProps)
 
   return (
