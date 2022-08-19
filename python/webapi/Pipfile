@@ -12,6 +12,7 @@ chess = "*"
 
 [dev-packages]
 pytest = "*"
+pytest-profiling = "*"
 
 [requires]
 python_version = "3.8"

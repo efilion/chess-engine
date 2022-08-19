@@ -4,7 +4,9 @@ from flask import Flask
 from flask_cors import cross_origin
 
 from app.engine.strategy import random
-from app.engine import akimbo
+from app.engine.akimbo import Akimbo
+
+import random
 
 def create_app(test_config=None):
     app = Flask(__name__)
@@ -29,11 +31,13 @@ def create_app(test_config=None):
     @app.route("/akimbo/san/<path:fen>")
     @cross_origin(origins = [('https' if app.config['TLS'] else 'http')+'://' + app.config['REACT_HOST']], methods = ["GET"])
     def akimbo_san_move(fen):
-        return akimbo.generate_move("san", fen)
+        recommended_moves = Akimbo(fen).recommend_moves("san")
+        return recommended_moves[random.randrange(len(recommended_moves))]
     
     @app.route("/akimbo/uci/<path:fen>")
     @cross_origin(origins = [('https' if app.config['TLS'] else 'http')+'://' + app.config['REACT_HOST']], methods = ["GET"])
     def akimbo_uci_move(fen):
-        return akimbo.generate_move("uci", fen)
+        recommended_moves = Akimbo(fen).recommend_moves("uci")
+        return recommended_moves[random.randrange(len(recommended_moves))]
     
     return app
