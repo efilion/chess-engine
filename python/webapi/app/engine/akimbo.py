@@ -1,5 +1,6 @@
 import chess
 import math
+from app.engine import piece_position_tables
 
 class Akimbo:
 
@@ -21,16 +22,18 @@ class Akimbo:
         elif self.drawn():
             eval = [0, 0]
         else:
-            whites_material_score = 0
-            blacks_material_score = 0
+            whites_score = 0
+            blacks_score = 0
             for (square, piece) in self.board.piece_map().items():
                 if piece.color == chess.WHITE:
-                    whites_material_score += self.piece_value(piece)
+                    whites_score += self.material_value(piece)
+                    whites_score += self.position_value(piece, square)
                 else:
-                    blacks_material_score += self.piece_value(piece)
+                    blacks_score += self.material_value(piece)
+                    blacks_score += self.position_value(piece, square)
             eval = [
-                whites_material_score - blacks_material_score,
-                blacks_material_score - whites_material_score
+                whites_score - blacks_score,
+                blacks_score - whites_score
             ]
 
         return eval
@@ -70,7 +73,7 @@ class Akimbo:
             self.board.pop()
         return m, max_list
     
-    def piece_value(self, piece):
+    def material_value(self, piece):
         piece_values = {
             chess.PAWN: 100,
             chess.KNIGHT: 320,
@@ -80,3 +83,19 @@ class Akimbo:
             chess.KING: 20000
         }
         return piece_values[piece.piece_type]
+
+    def position_value(self, piece, square):
+        [rank, file] = [chess.square_rank(square), chess.square_file(square)]
+        if piece.color == chess.WHITE:
+            rank = 7 - rank
+
+        position_values = {
+            chess.PAWN: piece_position_tables.pawn,
+            chess.KNIGHT: piece_position_tables.knight,
+            chess.BISHOP: piece_position_tables.bishop,
+            chess.ROOK: piece_position_tables.rook,
+            chess.QUEEN: piece_position_tables.queen,
+            chess.KING: piece_position_tables.king_middle
+        }
+
+        return position_values[piece.piece_type][rank][file]

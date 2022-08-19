@@ -29,3 +29,14 @@ class AkimboPlaysGoodMoves(TestCase):
     def test_knight_doesnt_capture_guarded_pawn(self):
         position = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
         self.assertNotEqual(["Nxe5"], Akimbo(position).recommend_moves("san"))
+
+
+class AkimboEvaluates(TestCase):
+
+    def test_scandinavian_defence(self):
+        position = "rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+        self.assertEqual([0, 0], Akimbo(position).evaluate())
+
+    def test_nimzowitsch_defence(self):
+        position = "r1bqkbnr/pppppppp/2n5/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 1 2"
+        self.assertEqual([-10, 10], Akimbo(position).evaluate())
