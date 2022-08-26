@@ -53,6 +53,10 @@ class AkimboPlaysGoodMoves(TestCase):
         position = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
         self.assertNotEqual(["Nxe5"], Akimbo(position).recommend_moves("san"))
 
+    def test_midgame_complexity(self):
+        position = "1r1q1rk1/p1p2pp1/b1p1p3/2P1Pn1p/3P1Q1P/2N2N2/P4PP1/R3R1K1 b - - 0 1"
+        all(self.assertIn(m, ['Rb2', 'Bc4', 'Bd3', 'Qe7', 'Rb4']) for m in Akimbo(position).recommend_moves("san"))
+
 
 class AkimboEvaluates(TestCase):
 

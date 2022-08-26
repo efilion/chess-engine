@@ -21,36 +21,52 @@ class Akimbo:
 
         whites_turn = self.board.turn == chess.WHITE
         possible_moves = list(sorted(self.board.legal_moves,
-            key=lambda m: self.heuristic_score(m)
+            key=lambda m: self.heuristic_score(m),
+            reverse=True
         ))
 
-        self.board.push(possible_moves[0])
-        best_eval, best_moves = -self.negamax(not whites_turn), []
-        self.board.pop()
-
-        for move in possible_moves:
-            self.board.push(move)
-            eval = -self.negamax(not whites_turn, beta=-best_eval)
+        for depth in range(0,2):
+            self.board.push(possible_moves[0])
+            best_eval, best_moves = -self.negamax(not whites_turn, lookahead_depth=depth), []
             self.board.pop()
-            if eval > best_eval:
-                best_eval, best_moves = eval, [move]
-            elif eval == best_eval:
-                best_moves.append(move)
+
+            for move in possible_moves:
+                self.board.push(move)
+                eval = -self.negamax(not whites_turn, beta=-best_eval, lookahead_depth=depth)
+                self.board.pop()
+                if eval > best_eval:
+                    best_eval, best_moves = eval, [move]
+                elif eval == best_eval:
+                    best_moves.append(move)
 
         return self.format(best_moves, format == "san")
 
     def heuristic_score(self, move):
+        
         self.board.push(move)
         if self.board.is_checkmate():
             self.board.pop()
-            return Score.Checkmate
+            return Score.Checkmate.value
+        
+        fen = self.board.fen()[:-4]
+        [prev_lookahead, prev_score] = self.negamax_memo[fen]
+        if prev_lookahead >= 0:
+            self.board.pop()
+            return prev_score
         self.board.pop()
+
+        score = 0
         if self.board.gives_check(move):
-            return Score.Check
-        elif self.board.is_capture(move):
-            return Score.Capture
-        else:
-            return Score.Else
+            score += Score.Check.value
+        if self.board.is_capture(move):
+            score += Score.Capture.value
+        if self.board.is_castling(move):
+            score += Score.Castling.value
+        
+        piece_to_move = self.board.piece_at(move.from_square)
+        score += self.position_value(piece_to_move, move.to_square)
+
+        return score
 
     def negamax(self, maximizing_player, lookahead_depth=2, alpha=(-math.inf), beta=(math.inf)):
         
@@ -67,7 +83,8 @@ class Akimbo:
 
         max_eval = -math.inf
         possible_moves = sorted(self.board.legal_moves,
-            key=lambda m: self.heuristic_score(m)
+            key=lambda m: self.heuristic_score(m),
+            reverse=True
         )
         for m in possible_moves:
             self.board.push(m)
@@ -90,9 +107,9 @@ class Akimbo:
             alpha = stand_pat
         
         best_move = stand_pat
-        threatening_moves = [move for move in self.board.legal_moves
+        threatening_moves = (move for move in self.board.legal_moves
             if self.board.is_capture(move) or self.board.gives_check(move)
-        ]
+        )
         for m in threatening_moves:
             self.board.push(m)
             score = -self.quiescence(not maximizing_player, -beta, -alpha)
@@ -151,7 +168,15 @@ class Akimbo:
             chess.KING: piece_position_tables.king_middle
         }
 
-        return position_values[piece.piece_type][rank][file]
+        score = position_values[piece.piece_type][rank][file]
+        if piece.piece_type == chess.ROOK:
+            is_opponents_pawn = lambda p: p and p.piece_type == chess.PAWN and p.color != piece.color
+            piece_at = lambda f_r: self.board.piece_at(chess.square(f_r[0], f_r[1]))
+            opponents_pawns_on_file = any((is_opponents_pawn(piece_at([file, r])) for r in range(0,7)))
+            if not opponents_pawns_on_file:
+                score += 10
+
+        return score
 
     def drawn(self):
         is_drawn = self.board.is_stalemate() \
@@ -165,11 +190,11 @@ class Akimbo:
 
 @total_ordering
 class Score(Enum):
-    Checkmate = 0
-    Check = 1
-    Capture = 2
-    Threat = 3
-    Else = 10
+    Checkmate = math.inf
+    Capture = 90
+    Check = 50
+    Castling = 40
+    Threat = 30
 
     def __lt__(self, other):
         if self.__class__ is other.__class__:
