@@ -1,5 +1,6 @@
 import chess
 import math
+import time
 from enum import Enum
 from functools import total_ordering
 from collections import defaultdict
@@ -7,12 +8,14 @@ from app.engine import piece_position_tables
 
 class Akimbo:
 
-    def __init__(self, fen, default_lookahead=1):
+    def __init__(self, fen, timeout=None, default_lookahead=1):
         self.board = chess.Board(fen)
+        self.timeout = timeout
         self.default_lookahead = default_lookahead
         self.negamax_memo = defaultdict(lambda: [-1, None])
 
     def recommend_moves(self, format: str):
+
         mates = [move for move in self.board.legal_moves
             if self.heuristic_score(move) == Score.Checkmate
         ]
@@ -20,26 +23,43 @@ class Akimbo:
             return self.format(mates, format == "san")
 
         whites_turn = self.board.turn == chess.WHITE
-        possible_moves = list(sorted(self.board.legal_moves,
-            key=lambda m: self.heuristic_score(m),
-            reverse=True
-        ))
+        legal_moves = list(self.board.legal_moves)
 
+        best_moves_overall = []
+        self.start_time = time.thread_time()
         for depth in range(0,2):
-            self.board.push(possible_moves[0])
-            best_eval, best_moves = -self.negamax(not whites_turn, lookahead_depth=depth), []
-            self.board.pop()
+            possible_moves = sorted(legal_moves,
+                key=lambda m: self.heuristic_score(m),
+                reverse=True
+            )
 
-            for move in possible_moves:
-                self.board.push(move)
-                eval = -self.negamax(not whites_turn, beta=-best_eval, lookahead_depth=depth)
+            try:
+                best_moves = [possible_moves[0]]
+                self.board.push(possible_moves[0])
+                best_eval = -self.negamax(not whites_turn, lookahead_depth=depth)
+            except Timeout:
+                break
+            finally:
                 self.board.pop()
+
+            for move in possible_moves[1:]:
+                self.board.push(move)
+                try:
+                    eval = -self.negamax(not whites_turn, beta=-best_eval, lookahead_depth=depth)
+                except Timeout:
+                    break
+                finally:
+                    self.board.pop()
                 if eval > best_eval:
                     best_eval, best_moves = eval, [move]
                 elif eval == best_eval:
                     best_moves.append(move)
+            else:
+                best_moves_overall = best_moves
+                continue
+            break
 
-        return self.format(best_moves, format == "san")
+        return self.format(best_moves_overall or best_moves, format == "san")
 
     def heuristic_score(self, move):
         
@@ -69,6 +89,8 @@ class Akimbo:
         return score
 
     def negamax(self, maximizing_player, lookahead_depth=2, alpha=(-math.inf), beta=(math.inf)):
+        if self.timeout and (time.thread_time() > self.start_time + self.timeout):
+            raise Timeout
         
         fen = self.board.fen()[:-4]
         update_memo = False
@@ -100,6 +122,9 @@ class Akimbo:
         return max_eval
 
     def quiescence(self, maximizing_player, alpha, beta):
+        if self.timeout and (time.thread_time() > self.start_time + self.timeout):
+            raise Timeout
+
         stand_pat = self.evaluate() if maximizing_player else -self.evaluate()
         if stand_pat >= beta:
             return stand_pat
@@ -201,3 +226,6 @@ class Score(Enum):
             return self.value < other.value
         else:
             return NotImplemented
+
+class Timeout(Exception):
+    pass

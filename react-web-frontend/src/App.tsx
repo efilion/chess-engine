@@ -52,7 +52,8 @@ function App(props: {boardProps?: Partial<BoardProps>}) {
   const boardProps = Object.assign({
     onStartGame: startGame,
     onGameOver: endGame,
-    engineMove: fetchAkimboMove
+    engineMove: fetchAkimboMove,
+    engineDelay: 0.5
   }, props.boardProps)
 
   return (
